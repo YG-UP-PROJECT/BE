@@ -1,8 +1,6 @@
 # BE
 4팀 백엔드 팀장 박찬현
 
-# BE – AI 음식점 추천 백엔드 (MVP)
-
 ## Quick Start
 - JDK **17+**
 - 실행: `./gradlew bootRun`
