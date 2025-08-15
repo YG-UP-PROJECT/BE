@@ -35,3 +35,16 @@ out/
 
 ### VS Code ###
 .vscode/
+# IntelliJ
+.idea/
+
+# Gradle
+.gradle/
+
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
