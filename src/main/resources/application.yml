@@ -1,0 +1,9 @@
+app:
+  kakao:
+    rest-api-key: ${KAKAO_REST_KEY}
+  google:
+    api-key: ${GOOGLE_API_KEY}
+
+spring:
+  main:
+    web-application-type: servlet
