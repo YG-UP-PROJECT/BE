@@ -1,0 +1,9 @@
+app:
+  kakao:
+    rest-api-key: c95f54e56da0815d8f8ca4aa14e59095
+  google:
+    api-key: AIzaSyCfUStdDCAnsA-QZkqGudEBAdVaNrOtYZk
+
+spring:
+  main:
+    web-application-type: servlet
