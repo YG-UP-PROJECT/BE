@@ -1,0 +1,7 @@
+server:
+  port: 8080
+
+# ✅ Google Gemini 설정
+gemini:
+  api-key: ${GEMINI_API_KEY:}   # 환경변수로 GEMINI_API_KEY 지정(없으면 빈값=fallback 동작)
+  model: gemini-1.5-flash       # 필요시 gemini-1.5-pro 등으로 변경 가능
