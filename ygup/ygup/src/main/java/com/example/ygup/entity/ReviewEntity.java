@@ -17,7 +17,7 @@ public class ReviewEntity {
 
     @Id
     @Column(length = 36)
-    private String id;                       // UUID string
+    private String id;
 
     @PrePersist
     public void prePersist() {
@@ -35,7 +35,7 @@ public class ReviewEntity {
     private String content;
 
     @Column(nullable = false)
-    private Integer rating;                  // 1..5 등 정수 평점
+    private Integer rating;
 
     // 선택 키워드
     @ElementCollection

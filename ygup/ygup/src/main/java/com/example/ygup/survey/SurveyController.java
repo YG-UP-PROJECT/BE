@@ -21,4 +21,10 @@ public class SurveyController {
         SurveyCreateResponse response = service.handleSurvey(request);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/latest")
+    public ResponseEntity<SurveyCreateResponse> getLatestSurvey() {
+        SurveyCreateResponse response = service.getLatestSurvey();
+        return ResponseEntity.ok(response);
+    }
 }

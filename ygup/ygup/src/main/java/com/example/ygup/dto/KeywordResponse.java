@@ -4,7 +4,7 @@ import java.util.List;
 
 public class KeywordResponse {
     private List<String> keywords;
-    private String prompt; // 디버깅/확인용(원하면 지워도 됨)
+    private String prompt;
 
     public KeywordResponse() {}
 
@@ -13,10 +13,19 @@ public class KeywordResponse {
         this.prompt = prompt;
     }
 
-    public List<String> getKeywords() { return keywords; }
-    public void setKeywords(List<String> keywords) { this.keywords = keywords; }
+    public List<String> getKeywords() {
+        return keywords;
+    }
 
-    public String getPrompt() { return prompt; }
-    public void setPrompt(String prompt) { this.prompt = prompt; }
+    public void setKeywords(List<String> keywords) {
+        this.keywords = keywords;
+    }
+
+    public String getPrompt() {
+        return prompt;
+    }
+
+    public void setPrompt(String prompt) {
+        this.prompt = prompt;
+    }
 }
-

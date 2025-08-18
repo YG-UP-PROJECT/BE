@@ -7,13 +7,15 @@ public class PreferenceRequest {
     private FoodStyle foodStyle;
     private DiningStyle diningStyle;
     private TimeSlot timeSlot;
-    private Weather weather;
-    private TempBand tempBand;
 
-    // 위치 정보 추가
-    private Double latitude;   // 위도
-    private Double longitude;  // 경도
-    private String location;   // 동네 이름 (ex: "부천시 역곡동")
+    private String weather;
+
+
+    private Double latitude;
+    private Double longitude;
+    private String location;
+
+    private String prompt;
 
     public PreferenceRequest() {}
 
@@ -29,11 +31,9 @@ public class PreferenceRequest {
     public TimeSlot getTimeSlot() { return timeSlot; }
     public void setTimeSlot(TimeSlot timeSlot) { this.timeSlot = timeSlot; }
 
-    public Weather getWeather() { return weather; }
-    public void setWeather(Weather weather) { this.weather = weather; }
+    public String getWeather() { return weather; }
+    public void setWeather(String weather) { this.weather = weather; }
 
-    public TempBand getTempBand() { return tempBand; }
-    public void setTempBand(TempBand tempBand) { this.tempBand = tempBand; }
 
     public Double getLatitude() { return latitude; }
     public void setLatitude(Double latitude) { this.latitude = latitude; }
@@ -43,4 +43,7 @@ public class PreferenceRequest {
 
     public String getLocation() { return location; }
     public void setLocation(String location) { this.location = location; }
+
+    public String getPrompt() { return prompt; }
+    public void setPrompt(String prompt) { this.prompt = prompt; }
 }

@@ -1,19 +1,18 @@
 package com.example.ygup.survey.dto;
 
+import com.example.ygup.enums.*;
+
 public record SurveyCreateResponse(
-        Long surveyId,               // ★ 저장된 PK 반환
+        Long surveyId,
         String comboCode,
         SurveySnapshot snapshot
 ) {
     public record SurveySnapshot(
-            SurveyCreateRequest.Mood mood,
-            SurveyCreateRequest.FoodStyle foodStyle,
-            SurveyCreateRequest.DiningStyle diningStyle,
-            SurveyCreateRequest.TimeSlot timeSlot,
-            SurveyCreateRequest.Weather weather,
-            SurveyCreateRequest.TempBand tempBand,
-            Integer tempC,
-            double latitude,
-            double longitude
+            Mood mood,
+            FoodStyle foodStyle,
+            DiningStyle diningStyle,
+            TimeSlot timeSlot,
+            String weather,
+            Integer tempC
     ) {}
 }

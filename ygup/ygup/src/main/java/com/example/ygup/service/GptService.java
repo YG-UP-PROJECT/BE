@@ -1,149 +1,69 @@
 package com.example.ygup.service;
 
-import com.example.ygup.dto.KeywordResponse;
 import com.example.ygup.dto.PreferenceRequest;
-import com.example.ygup.enums.*;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.ygup.dto.KeywordResponse;
+import com.example.ygup.entity.SurveyEntity;
+import com.example.ygup.survey.SurveyRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.net.URI;
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class GptService {
-    // 이름은 그대로 두되, 내부는 Google Gemini 호출로 변경
 
-    private final ObjectMapper om = new ObjectMapper();
+    private final WebClient webClient;
+    private final SurveyRepository surveyRepository;
+    private final String geminiApiKey;
 
-    @Value("${gemini.api-key:}")
-    private String apiKey;
-
-    @Value("${gemini.model:gemini-1.5-flash}")
-    private String model;
-
-    private final WebClient webClient = WebClient.builder()
-            .baseUrl("https://generativelanguage.googleapis.com")
-            .build();
-
-    public KeywordResponse generateKeywords(PreferenceRequest req) {
-        String prompt = buildPrompt(req);
-
-        // 🔸 API 키가 없으면(로컬/오프라인) 규칙기반 Fallback
-        if (apiKey == null || apiKey.isBlank()) {
-            return new KeywordResponse(fallbackKeywords(req), prompt);
-        }
-
-        /*
-         * Google Gemini (Generative Language API) 호출 규격
-         * POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=API_KEY
-         * Body:
-         * {
-         *   "contents": [{"parts": [{"text": "<prompt>"}]}],
-         *   "generationConfig": {"temperature": 0.2}
-         * }
-         */
-        String body = """
-        {
-          "contents": [
-            { "parts": [ { "text": %s } ] }
-          ],
-          "generationConfig": { "temperature": 0.2 }
-        }
-        """.formatted(om.valueToTree(prompt).toString());
-
-        try {
-            String url = String.format("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey);
-
-            String result = webClient.post()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
-                    .bodyValue(body)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-
-            // 응답 파싱: candidates[0].content.parts[0].text
-            JsonNode root = om.readTree(result);
-            JsonNode firstCandidate = root.path("candidates").get(0);
-            String content = firstCandidate.path("content").path("parts").get(0).path("text").asText();
-
-            // 모델에 "JSON만" 내놓으라 했으니 그대로 파싱
-            JsonNode json = om.readTree(content);
-            List<String> kws = new ArrayList<>();
-            for (JsonNode n : json.path("keywords")) {
-                kws.add(n.asText());
-            }
-
-            if (kws.isEmpty()) {
-                kws = fallbackKeywords(req);
-            }
-
-            return new KeywordResponse(kws, prompt);
-        } catch (Exception e) {
-            // 실패 시 Fallback
-            return new KeywordResponse(fallbackKeywords(req), prompt);
-        }
+    @Autowired
+    public GptService(WebClient.Builder webClientBuilder,
+                      SurveyRepository surveyRepository,
+                      @Value("${gemini.api-key}") String geminiApiKey) {
+        this.webClient = webClientBuilder.baseUrl("https://generativelanguage.googleapis.com/").build();
+        this.surveyRepository = surveyRepository;
+        this.geminiApiKey = geminiApiKey;
     }
 
-    // 🔹 위치/선호 정보를 반영한 프롬프트
-    private String buildPrompt(PreferenceRequest r) {
-        String baseLocation = (r.getLocation() != null && !r.getLocation().isBlank())
-                ? r.getLocation()
-                : "역곡"; // 기본값
+    public KeywordResponse generateKeywords(PreferenceRequest request) {
+        String prompt = generatePromptFromRequest(request);
 
-        String coordInfo = (r.getLatitude() != null && r.getLongitude() != null)
-                ? "(lat: " + r.getLatitude() + ", lon: " + r.getLongitude() + ")"
-                : "";
+        String response = webClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v1/models/gemini-1.5-flash:generateContent")
+                        .queryParam("key", geminiApiKey)
+                        .build())
+                .header("Content-Type", "application/json")
+                .bodyValue("{\"contents\":[{\"parts\":[{\"text\":\"" + prompt + "\"}]}]}")
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
 
-        // Gemini가 JSON만 출력하게 강하게 요구
-        return """
-        You are a restaurant keyword generator for Kakao Map. 
-        Return STRICT JSON only. No extra text.
+        List<String> keywords = extractKeywords(response);
 
-        Task:
-        - Generate 3-5 concise Korean search keywords for Kakao Map near "%s" %s.
-        - Use short noun phrases only (no sentences, no explanations).
-        - Tailor to the user's preferences below.
+        SurveyEntity entity = SurveyEntity.builder()
+                .mood(request.getMood())
+                .foodStyle(request.getFoodStyle())
+                .diningStyle(request.getDiningStyle())
+                .timeSlot(request.getTimeSlot())
+                .weather(request.getWeather())
+                .tempC(null)
+                .keywords(String.join(",", keywords))
+                .build();
 
-        Inputs:
-        - mood: %s
-        - foodStyle: %s
-        - diningStyle: %s
-        - timeSlot: %s
-        - weather: %s
-        - tempBand: %s
-        - location: %s %s
+        surveyRepository.save(entity);
 
-        Output JSON schema:
-        {
-          "keywords": ["역곡 이자카야","역곡 샐러드","역곡 조용한 카페"]
-        }
-        """.formatted(
-                baseLocation, coordInfo,
-                r.getMood(), r.getFoodStyle(), r.getDiningStyle(),
-                r.getTimeSlot(), r.getWeather(), r.getTempBand(),
-                baseLocation, coordInfo
-        );
+        return new KeywordResponse(keywords, prompt);
     }
 
-    // 아주 단순한 규칙기반 키워드(오프라인/에러시)
-    private List<String> fallbackKeywords(PreferenceRequest r) {
-        List<String> out = new ArrayList<>();
-        if (r != null) {
-            FoodStyle fs = r.getFoodStyle();
-            Mood m = r.getMood();
-            DiningStyle ds = r.getDiningStyle();
+    private List<String> extractKeywords(String response) {
+        return List.of("감성카페", "건강식", "비 오는 날 분위기 좋은 식당");
+    }
 
-            if (fs == FoodStyle.HEALTHY) out.add("역곡 샐러드");
-            if (fs == FoodStyle.EXCITING) out.add("역곡 이자카야");
-            if (m == Mood.QUIET) out.add("역곡 조용한 카페");
-            if (ds == DiningStyle.ALONE) out.add("역곡 혼밥");
-        }
-        if (out.isEmpty()) out.add("역곡 맛집");
-        return out;
+    private String generatePromptFromRequest(PreferenceRequest req) {
+        return "기분이 " + req.getMood() + "하고, 날씨는 " + req.getWeather() +
+                "일 때 어울리는 맛집 키워드를 추천해줘.";
     }
 }
