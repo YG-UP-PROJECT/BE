@@ -1,9 +1,8 @@
 package com.example.ygup.entity;
 
-import com.example.ygup.survey.dto.SurveyCreateRequest.*;
+import com.example.ygup.domain.SurveyEnums.*;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
 @Getter @Setter
@@ -14,7 +13,7 @@ import java.time.LocalDateTime;
 public class SurveyEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // MySQL AUTO_INCREMENT → 첫 레코드가 1
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, updatable = false)
@@ -22,6 +21,9 @@ public class SurveyEntity {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    @Column(length = 100)
+    private String locationName;   // 예: "부천시 역곡동"
 
     // 설문 4가지
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16)
@@ -40,16 +42,11 @@ public class SurveyEntity {
     @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16)
     private Weather weather;
 
-    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 16)
-    private TempBand tempBand;
 
     private Integer tempC;
 
-    // 위치
-
+    // 위치 (저장 시 역곡동 좌표로 고정 세팅)
     private Double latitude;
-
-
     private Double longitude;
 
     // 파생 코드
