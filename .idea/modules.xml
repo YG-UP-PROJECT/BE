@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/BE.iml" filepath="$PROJECT_DIR$/.idea/BE.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ygup.main.iml" filepath="$PROJECT_DIR$/.idea/modules/ygup.main.iml" />
     </modules>
   </component>
 </project>

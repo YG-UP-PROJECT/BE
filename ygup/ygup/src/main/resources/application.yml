@@ -1,0 +1,28 @@
+# src/main/resources/application.yml
+spring:
+  profiles:
+    active: dev   # 기본은 개발 프로파일로 실행
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/matbti?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}  # <-- 본인 계정
+    password: ${DB_PASS:}      # <-- 본인 패스워드
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update       # 개발 중에는 update, 운영 전환 시 validate/none 권장
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
+
+publicdata:
+  tourapi:
+    base-url: https://apis.data.go.kr/B551011/KorService2
+    service-key: ${TOURAPI_SERVICE_KEY:}
+    timeout-ms: 3000
+    page-size-default: 20
