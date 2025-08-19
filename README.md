@@ -52,10 +52,10 @@ java -jar ygup/ygup/build/libs/ygup-0.0.1-SNAPSHOT.jar --spring.profiles.active=
      GET /api/attractions/search?keyword=부천&mapX=126.97&mapY=37.56&page=1&size=10
      ```
 
-3) 외부→로컬 싱크(운영/캐시)  
+3) 외부→로컬 싱크(운영/캐시)  -> 프론트 사용 X
    - `POST /api/attractions/sync/{contentId}`  
 
-4) 로컬 CRUD(내부 관리용)  
+4) 로컬 CRUD(내부 관리용)  -> 프론트 사용 X
    - `GET /api/attractions`  
    - `GET /api/attractions/local/{contentId}`  
    - `POST /api/attractions`  
@@ -83,12 +83,4 @@ java -jar ygup/ygup/build/libs/ygup-0.0.1-SNAPSHOT.jar --spring.profiles.active=
 - `AttractionImage(id, contentId(FK), url, ... )`  
 - DTO: `AttractionSummaryDto, AttractionDetailDto, AttractionImageDto, PageResponse<T>`  
 
-### 테스트 예시 (curl)
-```bash
-curl "http://localhost:8080/api/attractions/nearby?lat=37.5&lng=126.8&radius=800&page=1&size=3"
-curl "http://localhost:8080/api/attractions/search?keyword=부천&page=1&size=10"
-```
-
-### 변경 이력
-- feat(public-data): TourAPI 연동, nearby/search, CORS(dev), 프로필 분리
 
