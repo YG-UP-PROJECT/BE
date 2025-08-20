@@ -1,7 +1,7 @@
 package com.example.ygup.survey.dto;
 
 import jakarta.validation.constraints.*;
-import com.example.ygup.domain.SurveyEnums.*;
+import com.example.ygup.enums.*;
 
 public record SurveyCreateRequest(
         @NotNull Mood mood,               // QUIET | NOISY

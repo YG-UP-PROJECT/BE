@@ -1,6 +1,6 @@
 package com.example.ygup.entity;
 
-import com.example.ygup.domain.SurveyEnums.*;
+import com.example.ygup.enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;

@@ -1,6 +1,6 @@
 package com.example.ygup.survey.dto;
 
-import com.example.ygup.domain.SurveyEnums.*;
+import com.example.ygup.enums.*;
 
 public record SurveyCreateResponse(
         Long surveyId,               // 저장된 PK 반환
