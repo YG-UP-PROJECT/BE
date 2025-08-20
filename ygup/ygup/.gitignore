@@ -35,3 +35,27 @@ out/
 
 ### VS Code ###
 .vscode/
+<<<<<<< HEAD
+.idea/
+
+
+#저장소에서 .idea를 무시하도록 정리함(지피티가 얘기해줌)
+.idea/
+*.iml
+out/
+build/
+=======
+# IntelliJ
+.idea/
+
+# Gradle
+.gradle/
+
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+>>>>>>> origin/feature/common-crud
