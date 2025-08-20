@@ -10,34 +10,50 @@ import java.util.Arrays;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 
-    @Value("${app.cors.allowed-origins:*}")
-    private String[] allowedOrigins; // 쉼표로 구분된 문자열을 배열로 바인딩
+    // 쉼표 구분 문자열을 배열로 안전 분리 (빈값 방지)
+    @Value("#{'${app.cors.allowed-origins:*}'.split(',')}")
+    private String[] allowedOriginsRaw;
 
-    @Value("${app.cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}")
-    private String[] allowedMethods;
+    @Value("#{'${app.cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}'.split(',')}")
+    private String[] allowedMethodsRaw;
 
-    @Value("${app.cors.allowed-headers:*}")
-    private String[] allowedHeaders;
+    @Value("#{'${app.cors.allowed-headers:*}'.split(',')}")
+    private String[] allowedHeadersRaw;
 
     @Value("${app.cors.allow-credentials:true}")
     private boolean allowCredentials;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        // 와일드카드(*)가 포함되어 있으면 allowedOriginPatterns 사용 (Spring 6 정책)
+        // 공백 제거 + 빈 항목 제거
+        String[] allowedOrigins = sanitize(allowedOriginsRaw);
+        String[] allowedMethods = sanitize(allowedMethodsRaw);
+        String[] allowedHeaders = sanitize(allowedHeadersRaw);
+
         boolean hasWildcard = Arrays.stream(allowedOrigins)
                 .anyMatch(o -> o != null && o.contains("*"));
+
+        // 브라우저 제약: allowCredentials=true && "*" 조합은 허용되지 않음
+        boolean effectiveAllowCredentials = allowCredentials && !hasWildcard;
 
         var reg = registry.addMapping("/**")
                 .allowedMethods(allowedMethods)
                 .allowedHeaders(allowedHeaders)
-                .allowCredentials(allowCredentials)
+                .allowCredentials(effectiveAllowCredentials)
                 .maxAge(3600);
 
         if (hasWildcard) {
+            // 와일드카드 사용 시 Spring 6+는 allowedOriginPatterns 권장
             reg.allowedOriginPatterns(allowedOrigins);
         } else {
             reg.allowedOrigins(allowedOrigins);
         }
+    }
+
+    private static String[] sanitize(String[] arr) {
+        return Arrays.stream(arr == null ? new String[0] : arr)
+                .map(s -> s == null ? "" : s.trim())
+                .filter(s -> !s.isEmpty())
+                .toArray(String[]::new);
     }
 }

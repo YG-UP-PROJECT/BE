@@ -41,7 +41,7 @@ public class TourApiClient {
                 .build();
     }
 
-    /* ===================== 외부 공개 메서드 ===================== */
+    /* 외부 공개 메서드  */
 
     public PageResponse<AttractionSummaryDto> searchKeyword(String keyword, int page, int size) {
         if (page <= 0) page = 1;
@@ -89,7 +89,7 @@ public class TourApiClient {
 
         JsonNode common = get(PATH_DETAIL_COMMON, p1);
 
-        // 🔁 아이템이 없고 타입을 모르거나 틀린 경우: 대표 타입으로 재시도
+        //아이템이 없고 타입을 모르거나 틀린 경우: 대표 타입으로 재시도
         if (firstItem(common) == null && contentTypeId == null) {
             int[] candidates = {12, 14, 38, 39}; // 관광지, 문화시설, 쇼핑, 음식점
             for (int ct : candidates) {
@@ -141,7 +141,7 @@ public class TourApiClient {
     }
 
 
-    /* ===================== 내부 공통 ===================== */
+    /*내부 공통*/
 
     private JsonNode get(String path, Map<String, ?> params) {
         URI uri = buildUri(path, params);
