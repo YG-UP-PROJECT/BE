@@ -1,8 +1,10 @@
 app:
   kakao:
-    rest-api-key: ${KAKAO_REST_KEY}
+    api:
+      key: ${KAKAO_REST_API_KEY:}
   google:
-    api-key: ${GOOGLE_API_KEY}
+    api:
+      key: ${GOOGLE_API_KEY:}
 
 spring:
   main:
