@@ -12,7 +12,7 @@ public record SurveyCreateResponse(
             FoodStyle foodStyle,
             DiningStyle diningStyle,
             TimeSlot timeSlot,
-            String weather,
+            Weather weather,
             Integer tempC
     ) {}
 }

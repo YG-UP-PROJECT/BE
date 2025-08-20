@@ -11,6 +11,6 @@ public record SurveyCreateRequest(
         @NotNull FoodStyle foodStyle,
         @NotNull DiningStyle diningStyle,
         @NotNull TimeSlot timeSlot,
-        String weather,
+        @NotNull Weather weather,
         Integer tempC
 ) {}

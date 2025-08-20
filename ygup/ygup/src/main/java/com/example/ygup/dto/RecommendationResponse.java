@@ -22,11 +22,11 @@ public class RecommendationResponse {
     public static class Place {
         private String name;
         private String address;
-        private double lat;
-        private double lng;
-        private double rating;
+        private Double lat;
+        private Double lng;
+        private Double rating;
 
-        public Place(String name, String address, double lat, double lng, double rating) {
+        public Place(String name, String address, Double lat, Double lng, Double rating) {
             this.name = name;
             this.address = address;
             this.lat = lat;
@@ -36,9 +36,9 @@ public class RecommendationResponse {
 
         public String getName() { return name; }
         public String getAddress() { return address; }
-        public double getLat() { return lat; }
-        public double getLng() { return lng; }
-        public double getRating() { return rating; }
+        public Double getLat() { return lat; }
+        public Double getLng() { return lng; }
+        public Double getRating() { return rating; }
     }
 }
 
