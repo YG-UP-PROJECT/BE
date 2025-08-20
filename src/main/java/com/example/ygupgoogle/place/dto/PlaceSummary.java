@@ -8,8 +8,8 @@ public record PlaceSummary(
         String category,
         String address,
         String roadAddress,
-        double kakaoX,     // 경도
-        double kakaoY,     // 위도
+        Double kakaoX,     // 경도
+        Double kakaoY,     // 위도
         String kakaoPlaceUrl,
         Double googleRating,           // null 가능
         Integer googleUserRatingsTotal,// null 가능
