@@ -26,8 +26,8 @@ public class PlaceAggregatorService {
 
     public PlaceAggregatorService(
             WebClient.Builder builder,
-            @Value("${app.kakao.rest-api-key}") String kakaoKey,
-            @Value("${app.google.api-key}") String googleKey
+            @Value("${app.kakao.api.key}") String kakaoKey,   // 수정
+            @Value("${app.google.api-key}") String googleKey  // 수정
     ) {
         this.webClient = builder.build();
         this.kakaoKey = kakaoKey;

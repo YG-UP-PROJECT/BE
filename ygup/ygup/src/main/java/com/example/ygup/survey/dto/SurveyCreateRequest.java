@@ -1,15 +1,14 @@
 package com.example.ygup.survey.dto;
 
 import jakarta.validation.constraints.*;
-import com.example.ygup.domain.SurveyEnums.*;
+import com.example.ygup.enums.*;
 
 public record SurveyCreateRequest(
-        @NotNull Mood mood,               // QUIET | NOISY
-        @NotNull FoodStyle foodStyle,     // HEALTHY | EXCITING
-        @NotNull DiningStyle diningStyle, // ALONE | TOGETHER
-        @NotNull TimeSlot timeSlot,       // LUNCH | DINNER
-
-        @NotNull Weather weather,         // CLEAR | CLOUD | RAIN | SNOW
+        @NotNull Mood mood,
+        @NotNull FoodStyle foodStyle,
+        @NotNull DiningStyle diningStyle,
+        @NotNull TimeSlot timeSlot,
+        @NotNull Weather weather,
 
         Integer tempC,                    // 선택
         @NotNull Location location        // 위경도 (받지만 서비스에서 역곡으로 고정 적용)

@@ -29,12 +29,20 @@ public class SurveyEntity {
     @Enumerated(EnumType.STRING)
     private TimeSlot timeSlot;
 
-    @Column(name = "weather")
-    private String weather;
+    @Enumerated(EnumType.STRING)
+    private Weather weather;
 
     private Integer tempC;
 
     private String comboCode;
+
+
+    @Column(length = 200)
+    private String locationName;
+
+    private Double latitude;
+
+    private Double longitude;
 
     @Column(columnDefinition = "TEXT")
     private String keywords;

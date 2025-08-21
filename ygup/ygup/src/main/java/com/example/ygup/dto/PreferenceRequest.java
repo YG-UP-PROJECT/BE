@@ -8,13 +8,11 @@ public class PreferenceRequest {
     private DiningStyle diningStyle;
     private TimeSlot timeSlot;
 
-    private String weather;
-
+    private Weather weather;   // enum으로 통일
 
     private Double latitude;
     private Double longitude;
     private String location;
-
     private String prompt;
 
     public PreferenceRequest() {}
@@ -31,9 +29,8 @@ public class PreferenceRequest {
     public TimeSlot getTimeSlot() { return timeSlot; }
     public void setTimeSlot(TimeSlot timeSlot) { this.timeSlot = timeSlot; }
 
-    public String getWeather() { return weather; }
-    public void setWeather(String weather) { this.weather = weather; }
-
+    public Weather getWeather() { return weather; }              // ✅ enum 반환
+    public void setWeather(Weather weather) { this.weather = weather; } // ✅ enum 받음
 
     public Double getLatitude() { return latitude; }
     public void setLatitude(Double latitude) { this.latitude = latitude; }
