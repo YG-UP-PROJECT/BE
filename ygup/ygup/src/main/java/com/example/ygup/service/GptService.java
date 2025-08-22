@@ -1,4 +1,3 @@
-// src/main/java/com/example/ygup/service/GptService.java
 package com.example.ygup.service;
 
 import com.example.ygup.dto.PreferenceRequest;
@@ -7,142 +6,116 @@ import com.example.ygup.entity.SurveyEntity;
 import com.example.ygup.survey.SurveyRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * OpenAI Chat Completions 사용해 키워드 3~5개 생성.
+ * 응답은 ["키워드1","키워드2"] 형태의 JSON 배열 문자열만 받도록 프롬프트 강제.
+ */
 @Service
 public class GptService {
 
     private final WebClient webClient;
-    private final SurveyRepository surveyRepository;
-    private final String geminiApiKey;
+    private final String model;
     private final ObjectMapper om = new ObjectMapper();
+    private final SurveyRepository surveyRepository;
 
-    @Autowired
-    public GptService(WebClient.Builder webClientBuilder,
-                      SurveyRepository surveyRepository,
-                      @Value("${gemini.api-key}") String geminiApiKey) {
-        this.webClient = webClientBuilder.baseUrl("https://generativelanguage.googleapis.com").build();
+    public GptService(
+            SurveyRepository surveyRepository,
+            @Value("${openai.api.url:https://api.openai.com/v1}") String apiBaseUrl,
+            @Value("${openai.api.key:}") String apiKey,
+            @Value("${openai.model:gpt-4o-mini}") String model
+    ) {
         this.surveyRepository = surveyRepository;
-        this.geminiApiKey = geminiApiKey;
-    }
-
-    public KeywordResponse generateKeywords(PreferenceRequest request) {
-        String prompt = generatePromptFromRequest(request);
-
-        String body = """
-        {
-          "contents":[
-            {
-              "role":"user",
-              "parts":[{"text": %s}]
-            }
-          ],
-          "generationConfig": {
-            "temperature": 0.6
-          }
-        }
-        """.formatted(jsonString(prompt));
-
-        String response = webClient.post()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v1/models/gemini-1.5-flash:generateContent")
-                        .queryParam("key", geminiApiKey)
-                        .build())
-                .header("Content-Type", "application/json")
-                .bodyValue(body)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-
-        List<String> keywords = extractKeywords(response);
-
-        SurveyEntity entity = SurveyEntity.builder()
-                .mood(request.getMood())
-                .foodStyle(request.getFoodStyle())
-                .diningStyle(request.getDiningStyle())
-                .timeSlot(request.getTimeSlot())
-                .weather(request.getWeather())
-                .tempC(null)
-                .keywords(String.join(",", keywords))
+        this.model = model;
+        this.webClient = WebClient.builder()
+                .baseUrl(apiBaseUrl)
+                .defaultHeaders(h -> h.setBearerAuth(Objects.requireNonNullElse(apiKey, "")))
                 .build();
-
-        surveyRepository.save(entity);
-        return new KeywordResponse(keywords, prompt);
     }
 
-    private List<String> extractKeywords(String response) {
+    public KeywordResponse generateKeywords(PreferenceRequest req) {
+        String prompt = buildPrompt(req);
         try {
-            JsonNode root = om.readTree(response);
-            // 표준 경로: candidates[0].content.parts[*].text
-            StringBuilder sb = new StringBuilder();
-            var cands = root.path("candidates");
-            if (cands.isArray() && cands.size() > 0) {
-                var parts = cands.get(0).path("content").path("parts");
-                if (parts.isArray()) {
-                    for (JsonNode p : parts) {
-                        String t = p.path("text").asText("");
-                        if (!t.isBlank()) sb.append(t).append("\n");
+            String content = webClient.post()
+                    .uri("/chat/completions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue("""
+                        {
+                          "model": "%s",
+                          "messages": [
+                            {"role":"system","content":"You are a helpful assistant that outputs ONLY valid JSON."},
+                            {"role":"user","content": %s}
+                          ],
+                          "temperature": 0.3
+                        }
+                    """.formatted(model, jsonString(prompt)))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .onErrorResume(e -> Mono.empty())
+                    .block();
+
+            List<String> keywords = new ArrayList<>();
+            if (content != null) {
+                JsonNode root = om.readTree(content);
+                JsonNode node = root.path("choices").path(0).path("message").path("content");
+                if (node.isTextual()) {
+                    String json = node.asText();
+                    JsonNode arr = om.readTree(json);
+                    if (arr.isArray()) {
+                        for (JsonNode x : arr) if (x.isTextual()) keywords.add(x.asText());
                     }
                 }
             }
-            String text = sb.toString().trim();
-            if (text.isBlank()) return List.of();
 
-            // 쉼표/개행/대괄호/따옴표 제거 기준으로 키워드 뽑기
-            text = text.replaceAll("[\\[\\]\\-•\\n\\r]", ",");
-            String[] tokens = text.split(",");
-            List<String> out = new ArrayList<>();
-            for (String tk : tokens) {
-                String s = tk.trim();
-                if (s.isEmpty()) continue;
-                // "키워드:" 형태 제거
-                s = s.replaceAll("(?i)keyword(s)?\\s*:","").trim();
-                if (!s.isEmpty()) out.add(s);
+            // 최신 설문에 키워드 저장(있다면)
+            if (!keywords.isEmpty()) {
+                SurveyEntity latest = surveyRepository.findTopByOrderByIdDesc();
+                if (latest != null) {
+                    latest.setKeywords(String.join(" ", keywords));
+                    surveyRepository.save(latest);
+                }
             }
-            // 3~8개로 제한 (과다 생성 방지)
-            if (out.size() > 8) return out.subList(0, 8);
-            return out;
+            return new KeywordResponse(keywords, prompt);
         } catch (Exception e) {
-            // 실패 시 최소 안전 기본값
-            return List.of("분위기 좋은 카페", "건강한 집밥", "비 오는 날 감성 식당");
+            return new KeywordResponse(List.of(), prompt); // 폴백
         }
     }
 
-    private String generatePromptFromRequest(PreferenceRequest req) {
-        // NPE 방지 가드
-        String mood = req.getMood() == null ? "기분 보통" : req.getMood().name();
-        String weatherStr = req.getWeather() == null ? "날씨 정보 없음" : req.getWeather().name();
+    private static String buildPrompt(PreferenceRequest req) {
+        String mood = req.getMood() == null ? "기본" : req.getMood().name();
+        String foodStyle = req.getFoodStyle() == null ? "기본" : req.getFoodStyle().name();
+        String diningStyle = req.getDiningStyle() == null ? "기본" : req.getDiningStyle().name();
+        String timeSlot = req.getTimeSlot() == null ? "기본" : req.getTimeSlot().name();
+        String weather = req.getWeather() == null ? "기본" : req.getWeather().name();
+        String location = req.getLocation() == null ? "미상" : req.getLocation();
 
         return """
-        아래 설문 결과와 날씨/시간 정보를 보고 한국어 '맛집/장소' 검색에 바로 쓸 수 있는 **키워드 구절**을 5~7개 추천해줘.
-        - 톤: 간결, 실사용 검색어
-        - 출력: 쉼표로 구분된 키워드 나열만 (설명 금지)
+            사용자의 외식 선호를 기반으로 한국어 검색 키워드 3~5개만 뽑아 JSON 배열로만 출력하세요.
+            각 키워드는 1~4글자 명사/형태로, 중복/유사어는 제외합니다.
+            반드시 ["키워드1","키워드2"] 형식만 출력하세요. 추가 설명/마크다운 금지.
 
-        [설문]
-        - 분위기: %s
-        - 음식 스타일: %s
-        - 식사 스타일: %s
-        - 시간대: %s
-        - 날씨: %s
-        - 위치 힌트: %s
-        """.formatted(
-                mood,
-                req.getFoodStyle() == null ? "기본" : req.getFoodStyle().name(),
-                req.getDiningStyle() == null ? "기본" : req.getDiningStyle().name(),
-                req.getTimeSlot() == null ? "기본" : req.getTimeSlot().name(),
-                weatherStr,
-                req.getLocation() == null ? "미상" : req.getLocation()
-        );
+            조건:
+            - 기분: %s
+            - 음식 성향: %s
+            - 식사 방식: %s
+            - 시간대: %s
+            - 날씨: %s
+            - 위치: %s
+
+            예시 출력: ["건강식","혼밥","한식","저녁","역곡"]
+            """.formatted(mood, foodStyle, diningStyle, timeSlot, weather, location);
     }
 
     private static String jsonString(String s) {
-        // JSON 안전 문자열로 변환
         return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 }
