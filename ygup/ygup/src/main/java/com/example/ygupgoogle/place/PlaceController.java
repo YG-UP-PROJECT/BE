@@ -27,4 +27,16 @@ public class PlaceController {
     ) {
         return ResponseEntity.ok(service.searchWithGoogleRatings(query, limit));
     }
+    @GetMapping("/photo")
+    public ResponseEntity<byte[]> photo(
+            @RequestParam("ref") String photoRef,
+            @RequestParam(value = "maxWidth", defaultValue = "800") int maxWidth
+    ) {
+        byte[] bytes = service.fetchPhotoBytes(photoRef, maxWidth);
+        // 간단히 jpeg로 지정 (구글이 웹p/PNG일 수도 있으니 필요하면 Content-Type 동적 처리)
+        return ResponseEntity.ok()
+                .header("Cache-Control", "public, max-age=86400")
+                .header("Content-Type", "image/jpeg")
+                .body(bytes);
+    }
 }

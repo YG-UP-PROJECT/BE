@@ -52,11 +52,13 @@ public class KakaoMapService {
                         : d.address_name();
 
                 results.add(new Place(
+                        d.id(),
                         d.place_name(),
                         addr,
                         lat,
                         lng,
-                        null // 카카오 응답엔 별점 없음. (평점이 필요하면 PlaceAggregatorService 사용)
+                        null, // 카카오 응답엔 별점 없음. (평점이 필요하면 PlaceAggregatorService 사용)
+                        d.place_url()
                 ));
             }
         }

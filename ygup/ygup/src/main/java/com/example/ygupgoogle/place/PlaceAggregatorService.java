@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
-
+import com.example.ygupgoogle.place.dto.PlaceDetailsResponse;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -33,47 +33,146 @@ public class PlaceAggregatorService {
         this.kakaoKey = kakaoKey;
         this.googleKey = googleKey;
     }
+    public byte[] fetchPhotoBytes(String photoRef, int maxWidth) {
+        return webClient.get()
+                .uri(uri -> uri
+                        .scheme("https")
+                        .host("maps.googleapis.com")
+                        .path("/maps/api/place/photo")
+                        .queryParam("maxwidth", maxWidth)
+                        .queryParam("photo_reference", photoRef)
+                        .queryParam("key", googleKey)
+                        .build())
+                .retrieve()
+                .bodyToMono(byte[].class)
+                .block();
+    }
+
+    public PlaceDetailsResponse getDetailsByGooglePlaceId(String googlePlaceId, String kakaoIdOpt) {
+        var details = googlePlaceDetails(googlePlaceId);
+        if (details == null || details.result() == null) {
+            return new PlaceDetailsResponse(
+                    googlePlaceId, kakaoIdOpt, null, null,
+                    null, null, List.of(), List.of(), List.of()
+            );
+        }
+
+        var res = details.result();
+
+        // 리뷰 상위 3개 (평점 높은 순)
+        List<PlaceDetailsResponse.Review> reviews = List.of();
+        if (res.reviews() != null) {
+            reviews = res.reviews().stream()
+                    .sorted(Comparator.comparingInt(
+                            (GooglePlaceDetailsResponse.Result.Review r) -> r.rating() == null ? 0 : r.rating()
+                    ).reversed())
+                    .limit(3)
+                    .map(r -> new PlaceDetailsResponse.Review(r.author_name(), r.rating(), r.text()))
+                    .toList();
+        }
+
+        // 사진 (최대 6장) + 출처
+        java.util.List<String> photoUrls = new java.util.ArrayList<>();
+        java.util.List<String> attributions = new java.util.ArrayList<>();
+        if (res.photos() != null) {
+            res.photos().stream()
+                    .limit(6)
+                    .forEach(p -> {
+                        photoUrls.add(buildPhotoProxyUrl(p.photo_reference(), 800));
+                        if (p.html_attributions() != null) attributions.addAll(p.html_attributions());
+                    });
+        }
+
+        return new PlaceDetailsResponse(
+                googlePlaceId,
+                kakaoIdOpt,
+                res.name(),
+                res.formatted_address(),
+                res.rating(),
+                res.user_ratings_total(),
+                reviews,
+                photoUrls,
+                attributions
+        );
+    }
 
     public List<PlaceSummary> searchWithGoogleRatings(String query, int limit) {
-        // 1) 카카오 검색
         var kakaoDocs = kakaoKeywordSearch(query);
-
-        // 상위 N개
         var top = kakaoDocs.stream().limit(limit).toList();
-
         List<PlaceSummary> result = new ArrayList<>();
 
         for (var d : top) {
-            // 2) 구글 텍스트 검색으로 place_id 매칭 (이름 + 주소, 위치 바이어스)
             Double x = parseOrNull(d.x());
             Double y = parseOrNull(d.y());
 
-            String textQuery = d.place_name() + " " + safe(d.road_address_name().isBlank() ? d.address_name() : d.road_address_name());
-            var googleMatch = googleTextSearch(textQuery, y, x); // lat(y), lng(x)
+            String textQuery = d.place_name() + " " +
+                    safe(d.road_address_name() == null || d.road_address_name().isBlank()
+                            ? d.address_name()
+                            : d.road_address_name());
+            var googleMatch = googleTextSearch(textQuery, y, x);
 
             Double rating = null;
             Integer ratingsTotal = null;
             List<PlaceSummary.GoogleReview> reviews = List.of();
+            List<String> photoProxyUrls = new ArrayList<>();
+            List<String> attributions = new ArrayList<>();
 
+            // 1) 텍스트 검색 결과에서 사진 ref 뽑기 (빠르고 쿼터 절약)
+            List<GoogleTextSearchResponse.Result.Photo> textPhotos = List.of();
             if (googleMatch != null && !googleMatch.results().isEmpty()) {
-                String placeId = googleMatch.results().get(0).place_id();
+                var first = googleMatch.results().get(0);
+                if (first.photos() != null) textPhotos = first.photos();
+            }
 
-                // 3) 상세조회로 평점/리뷰
-                var details = googlePlaceDetails(placeId);
+            String placeId = (googleMatch != null && !googleMatch.results().isEmpty())
+                    ? googleMatch.results().get(0).place_id()
+                    : null;
+
+            String googlePlaceId = placeId;
+            String kakaoId = d.id(); // KakaoSearchResponse.Document에 id 필드 추가돼 있어야 함
+
+
+            // 2) 상세 조회 (평점/리뷰/추가사진)
+            if (placeId != null) {
+                var details = googlePlaceDetails(placeId); // 아래 fields에 photos 추가됨
                 if (details != null && details.result() != null) {
                     rating = details.result().rating();
                     ratingsTotal = details.result().user_ratings_total();
+
                     if (details.result().reviews() != null) {
                         reviews = details.result().reviews().stream()
-                                .sorted(Comparator.comparingInt((GooglePlaceDetailsResponse.Result.Review r) -> r.rating() == null ? 0 : r.rating()).reversed())
+                                .sorted(Comparator.comparingInt((GooglePlaceDetailsResponse.Result.Review r)
+                                        -> r.rating() == null ? 0 : r.rating()).reversed())
                                 .limit(3)
                                 .map(r -> new PlaceSummary.GoogleReview(r.author_name(), r.text(), r.rating()))
                                 .toList();
                     }
+
+                    // 사진: textSearch + details 합쳐 상위 3장
+                    var mergedPhotos = new ArrayList<GooglePlaceDetailsResponse.Result.Photo>();
+                    // 텍스트 검색 사진을 details.Photo로 억지 매핑
+                    for (var p : textPhotos) {
+                        mergedPhotos.add(new GooglePlaceDetailsResponse.Result.Photo(
+                                p.photo_reference(), p.html_attributions(), p.width(), p.height()
+                        ));
+                    }
+                    if (details.result().photos() != null) mergedPhotos.addAll(details.result().photos());
+
+                    mergedPhotos.stream()
+                            .map(p -> {
+                                if (p.html_attributions() != null) attributions.addAll(p.html_attributions());
+                                return buildPhotoProxyUrl(p.photo_reference(), 800);
+                            })
+                            .distinct()
+                            .limit(1)
+                            .forEach(photoProxyUrls::add);
                 }
             }
 
             result.add(new PlaceSummary(
+                    kakaoId,
+                    googlePlaceId,
+
                     d.place_name(),
                     d.category_name(),
                     d.address_name(),
@@ -83,7 +182,9 @@ public class PlaceAggregatorService {
                     d.place_url(),
                     rating,
                     ratingsTotal,
-                    reviews
+                    reviews,
+                    photoProxyUrls,
+                    attributions
             ));
         }
 
@@ -138,7 +239,7 @@ public class PlaceAggregatorService {
         // https://maps.googleapis.com/maps/api/place/details/json
         MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
         params.add("place_id", placeId);
-        params.add("fields", "rating,user_ratings_total,reviews"); // 필요 필드만
+        params.add("fields", "name,formatted_address,rating,user_ratings_total,reviews,photos");
         params.add("key", googleKey);
         params.add("language", "ko");
 
@@ -161,7 +262,12 @@ public class PlaceAggregatorService {
         try { return Double.parseDouble(s); } catch (Exception e) { return 0d; }
     }
     private static String safe(String s) {
-        if (s == null) return "";
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
+        return (s == null) ? "" : s.trim();
     }
+
+    private String buildPhotoProxyUrl(String photoRef, int maxWidth) {
+        return "/places/photo?ref=" + URLEncoder.encode(photoRef, StandardCharsets.UTF_8)
+                + "&maxWidth=" + maxWidth;
+    }
+
 }

@@ -12,7 +12,8 @@ app:
   google:
     api-key: ${GOOGLE_API_KEY:}     # 구글 Places API 키
 gemini:
-  api-key: ${GEMINI_API_KEY:}       # Gemini API 키
+  api-key: AIzaSyAau3MHF2zJXAMOB8Rq7RPWxOaB0DUWsAU
+  #api-key: ${GEMINI_API_KEY:}       # Gemini API 키
 
 spring:
   datasource:
