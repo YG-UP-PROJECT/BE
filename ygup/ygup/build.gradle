@@ -10,7 +10,7 @@ version = '0.0.1-SNAPSHOT'
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
-        vendor = JvmVendorSpec.AMAZON
+        //vendor = JvmVendorSpec.AMAZON
     }
 }
 java {
@@ -36,6 +36,8 @@ dependencies {
     // ✅ WebClient 용도 (Reactive)
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'io.projectreactor.netty:reactor-netty'
+    // Spring Security
+    implementation 'org.springframework.boot:spring-boot-starter-security'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
