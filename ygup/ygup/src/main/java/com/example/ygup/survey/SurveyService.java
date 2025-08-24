@@ -60,14 +60,14 @@ public class SurveyService {
                 latest.getTimeSlot(), latest.getWeather(), latest.getTempC(),
                 latest.getLocationName()
         );
-        
+
         return new SurveyCreateResponse(latest.getId(), latest.getComboCode(), snap);
     }
 
     private String computeComboCode(SurveyCreateRequest req) {
         return (req.mood() == Mood.QUIET ? "Q" : "N") +
-               (req.foodStyle() == FoodStyle.HEALTHY ? "H" : "E") +
-               (req.diningStyle() == DiningStyle.ALONE ? "A" : "T") +
-               (req.timeSlot() == TimeSlot.LUNCH ? "L" : "D");
+                (req.foodStyle() == FoodStyle.HEALTHY ? "H" : "E") +
+                (req.diningStyle() == DiningStyle.ALONE ? "A" : "T") +
+                (req.timeSlot() == TimeSlot.LUNCH ? "L" : "D");
     }
 }

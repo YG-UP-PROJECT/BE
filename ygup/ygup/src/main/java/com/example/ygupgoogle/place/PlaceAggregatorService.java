@@ -88,8 +88,8 @@ public class PlaceAggregatorService {
         }
 
         return new PlaceDetailsResponse(
-                googlePlaceId,
                 kakaoIdOpt,
+                googlePlaceId,
                 res.name(),
                 res.formatted_address(),
                 res.rating(),

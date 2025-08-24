@@ -13,7 +13,11 @@ java {
         vendor = JvmVendorSpec.AMAZON
     }
 }
-
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
 configurations {
     compileOnly {
         extendsFrom annotationProcessor

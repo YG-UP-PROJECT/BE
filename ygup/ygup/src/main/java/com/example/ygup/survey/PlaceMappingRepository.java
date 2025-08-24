@@ -5,3 +5,4 @@ import com.example.ygup.entity.PlaceMappingEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PlaceMappingRepository extends JpaRepository<PlaceMappingEntity, String> {}
+
