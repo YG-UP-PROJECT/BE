@@ -1,5 +1,6 @@
 package com.example.ygupgoogle.place;
 
+import com.example.ygup.service.PlaceMappingService;
 import com.example.ygupgoogle.place.dto.PlaceSummary;
 import com.example.ygupgoogle.place.dto.kakao.KakaoSearchResponse;
 import com.example.ygupgoogle.place.dto.google.GooglePlaceDetailsResponse;
@@ -23,15 +24,18 @@ public class PlaceAggregatorService {
     private final WebClient webClient;
     private final String kakaoKey;
     private final String googleKey;
+    private final PlaceMappingService placeMappingService;
 
     public PlaceAggregatorService(
             WebClient.Builder builder,
             @Value("${app.kakao.api.key}") String kakaoKey,   // 수정
-            @Value("${app.google.api-key}") String googleKey  // 수정
+            @Value("${app.google.api-key}") String googleKey,  // 수정
+            PlaceMappingService placeMappingService
     ) {
         this.webClient = builder.build();
         this.kakaoKey = kakaoKey;
         this.googleKey = googleKey;
+        this.placeMappingService = placeMappingService;
     }
     public byte[] fetchPhotoBytes(String photoRef, int maxWidth) {
         return webClient.get()
@@ -131,6 +135,16 @@ public class PlaceAggregatorService {
             String googlePlaceId = placeId;
             String kakaoId = d.id(); // KakaoSearchResponse.Document에 id 필드 추가돼 있어야 함
 
+            // ★ 매핑 캐시 저장 (검색 시점에 확보된 정보로 갱신)
+            placeMappingService.upsert(
+                    kakaoId,
+                    googlePlaceId,
+                    d.place_name(),
+                    (d.road_address_name() != null && !d.road_address_name().isBlank()) ? d.road_address_name() : d.address_name(),
+                    parseOrNull(d.y()), // lat
+                    parseOrNull(d.x())  // lng
+            );
+
 
             // 2) 상세 조회 (평점/리뷰/추가사진)
             if (placeId != null) {
@@ -186,8 +200,8 @@ public class PlaceAggregatorService {
                     photoProxyUrls,
                     attributions
             ));
-        }
 
+        }
         return result;
     }
 
