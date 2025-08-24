@@ -1,7 +1,7 @@
 app:
   cors:
-    # 실제 배포 프론트엔드 도메인 (예: Vercel 주소)
-    allowed-origins: "https://ygup.vercel.app"
+    # 실제 배포 프론트엔드 도메인
+    allowed-origins: "http://localhost:5173"
     allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
     allowed-headers: "*"
     allow-credentials: true
