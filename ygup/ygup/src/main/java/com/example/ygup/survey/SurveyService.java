@@ -65,7 +65,7 @@ public class SurveyService {
     }
 
     private String computeComboCode(SurveyCreateRequest req) {
-        return (req.mood() == Mood.QUIET ? "Q" : "N") +
+        return (req.mood() == Mood.QUIET ? "Q" : "L") +
                 (req.foodStyle() == FoodStyle.HEALTHY ? "H" : "E") +
                 (req.diningStyle() == DiningStyle.ALONE ? "A" : "T") +
                 // DAY -> "D", NIGHT -> "N"
