@@ -1,3 +1,4 @@
+// src/main/java/com/example/ygupgoogle/place/PlaceAggregatorService.java
 package com.example.ygupgoogle.place;
 
 import com.example.ygupgoogle.place.dto.PlaceSummary;
@@ -6,162 +7,128 @@ import com.example.ygupgoogle.place.dto.google.GooglePlaceDetailsResponse;
 import com.example.ygupgoogle.place.dto.google.GoogleTextSearchResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class PlaceAggregatorService {
 
-    private final WebClient webClient;
-    private final String kakaoKey;
+    private final WebClient kakao;
+    private final WebClient google;
     private final String googleKey;
 
     public PlaceAggregatorService(
-            WebClient.Builder builder,
-            @Value("${app.kakao.api.key}") String kakaoKey,   // 수정
-            @Value("${app.google.api-key}") String googleKey  // 수정
+            // ✅ 루트키 우선, 없으면 app.* 키를 사용
+            @Value("${kakao.api.key:${app.kakao.api.key:}}") String kakaoKey,
+            @Value("${kakao.api.url:${app.kakao.api.base-url:https://dapi.kakao.com}}") String kakaoBaseUrl,
+            @Value("${google.api.key:${app.google.api-key:}}") String googleKey,
+            @Value("${google.api.url:https://maps.googleapis.com}") String googleBaseUrl
     ) {
-        this.webClient = builder.build();
-        this.kakaoKey = kakaoKey;
-        this.googleKey = googleKey;
+        this.googleKey = Objects.requireNonNullElse(googleKey, "");
+        this.kakao = WebClient.builder()
+                .baseUrl(kakaoBaseUrl)
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "KakaoAK " + Objects.requireNonNullElse(kakaoKey, ""))
+                .build();
+        this.google = WebClient.builder()
+                .baseUrl(googleBaseUrl)
+                .build();
     }
 
+    /** Kakao 결과에 Google rating/reviews를 붙여 limit개 반환. Google 실패 시 Kakao만 반환 */
     public List<PlaceSummary> searchWithGoogleRatings(String query, int limit) {
-        // 1) 카카오 검색
-        var kakaoDocs = kakaoKeywordSearch(query);
+        KakaoSearchResponse kakaoRes = kakao.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v2/local/search/keyword.json")
+                        .queryParam("query", query)          // uriBuilder가 알아서 인코딩
+                        .queryParam("size", limit)
+                        .build())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .bodyToMono(KakaoSearchResponse.class)
+                .onErrorResume(ex -> Mono.empty())          // 401/5xx → empty → null
+                .block();
 
-        // 상위 N개
-        var top = kakaoDocs.stream().limit(limit).toList();
+        List<PlaceSummary> out = new ArrayList<>();
+        if (kakaoRes == null || kakaoRes.documents() == null) return out;
 
-        List<PlaceSummary> result = new ArrayList<>();
-
-        for (var d : top) {
-            // 2) 구글 텍스트 검색으로 place_id 매칭 (이름 + 주소, 위치 바이어스)
-            Double x = parseOrNull(d.x());
-            Double y = parseOrNull(d.y());
-
-            String textQuery = d.place_name() + " " + safe(d.road_address_name().isBlank() ? d.address_name() : d.road_address_name());
-            var googleMatch = googleTextSearch(textQuery, y, x); // lat(y), lng(x)
+        for (KakaoSearchResponse.Document d : kakaoRes.documents()) {
+            String name        = d.place_name();
+            String address     = d.address_name();
+            String roadAddress = d.road_address_name();
+            double x           = parseOrZero(d.x()); // lng
+            double y           = parseOrZero(d.y()); // lat
+            String kakaoPlaceUrl = d.place_url();
 
             Double rating = null;
-            Integer ratingsTotal = null;
+            Integer total = null;
             List<PlaceSummary.GoogleReview> reviews = List.of();
 
-            if (googleMatch != null && !googleMatch.results().isEmpty()) {
-                String placeId = googleMatch.results().get(0).place_id();
+            // Google enrich (있을 때만)
+            if (!googleKey.isBlank()) {
+                try {
+                    String q = name + " " + (roadAddress != null && !roadAddress.isBlank() ? roadAddress : address);
 
-                // 3) 상세조회로 평점/리뷰
-                var details = googlePlaceDetails(placeId);
-                if (details != null && details.result() != null) {
-                    rating = details.result().rating();
-                    ratingsTotal = details.result().user_ratings_total();
-                    if (details.result().reviews() != null) {
-                        reviews = details.result().reviews().stream()
-                                .sorted(Comparator.comparingInt((GooglePlaceDetailsResponse.Result.Review r) -> r.rating() == null ? 0 : r.rating()).reversed())
-                                .limit(3)
-                                .map(r -> new PlaceSummary.GoogleReview(r.author_name(), r.text(), r.rating()))
-                                .toList();
+                    GoogleTextSearchResponse text = google.get()
+                            .uri(uriBuilder -> uriBuilder
+                                    .path("/maps/api/place/textsearch/json")
+                                    .queryParam("query", q)
+                                    .queryParam("language", "ko")
+                                    .queryParam("key", googleKey)
+                                    .build())
+                            .accept(MediaType.APPLICATION_JSON)
+                            .retrieve()
+                            .bodyToMono(GoogleTextSearchResponse.class)
+                            .block();
+
+                    if (text != null && text.results() != null && !text.results().isEmpty()) {
+                        String placeId = text.results().get(0).place_id();
+
+                        GooglePlaceDetailsResponse details = google.get()
+                                .uri(uriBuilder -> uriBuilder
+                                        .path("/maps/api/place/details/json")
+                                        .queryParam("place_id", placeId)
+                                        .queryParam("language", "ko")
+                                        .queryParam("key", googleKey)
+                                        .build())
+                                .accept(MediaType.APPLICATION_JSON)
+                                .retrieve()
+                                .bodyToMono(GooglePlaceDetailsResponse.class)
+                                .block();
+
+                        if (details != null && details.result() != null) {
+                            rating = details.result().rating();
+                            total  = details.result().user_ratings_total();
+                            if (details.result().reviews() != null) {
+                                reviews = details.result().reviews().stream()
+                                        .limit(3)
+                                        .map(r -> new PlaceSummary.GoogleReview(
+                                                r.author_name(), r.text(), r.rating()))
+                                        .toList();
+                            }
+                        }
                     }
+                } catch (Exception ignore) {
+                    // 구글 enrich 실패 → 카카오만 반환
                 }
             }
 
-            result.add(new PlaceSummary(
-                    d.place_name(),
-                    d.category_name(),
-                    d.address_name(),
-                    d.road_address_name(),
-                    parseOrZero(d.x()),
-                    parseOrZero(d.y()),
-                    d.place_url(),
-                    rating,
-                    ratingsTotal,
-                    reviews
+            out.add(new PlaceSummary(
+                    name, d.category_name(), address, roadAddress, x, y, kakaoPlaceUrl,
+                    rating, total, reviews
             ));
         }
-
-        return result;
+        return out;
     }
 
-    private List<KakaoSearchResponse.Document> kakaoKeywordSearch(String query) {
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("query", query);
-        params.add("size", "15");
-
-        KakaoSearchResponse resp = webClient.get()
-                .uri(uri -> uri
-                        .scheme("https")
-                        .host("dapi.kakao.com")
-                        .path("/v2/local/search/keyword.json")
-                        .queryParams(params)
-                        .build())
-                .header(HttpHeaders.AUTHORIZATION, "KakaoAK " + kakaoKey)
-                .retrieve()
-                .bodyToMono(KakaoSearchResponse.class)
-                .block();
-
-        return resp == null || resp.documents() == null ? List.of() : resp.documents();
-    }
-
-    private GoogleTextSearchResponse googleTextSearch(String textQuery, Double lat, Double lng) {
-        // 구글 구버전 Web Service (Text Search)
-        // https://maps.googleapis.com/maps/api/place/textsearch/json
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("query", textQuery);
-        params.add("key", googleKey);
-        if (lat != null && lng != null) {
-            params.add("location", lat + "," + lng);
-            params.add("radius", "1500"); // 1.5km 반경
-        }
-        params.add("language", "ko");
-
-        return webClient.get()
-                .uri(uri -> uri
-                        .scheme("https")
-                        .host("maps.googleapis.com")
-                        .path("/maps/api/place/textsearch/json")
-                        .queryParams(params)
-                        .build())
-                .retrieve()
-                .bodyToMono(GoogleTextSearchResponse.class)
-                .block();
-    }
-
-    private GooglePlaceDetailsResponse googlePlaceDetails(String placeId) {
-        // https://maps.googleapis.com/maps/api/place/details/json
-        MultiValueMap<String, String> params = new LinkedMultiValueMap<>();
-        params.add("place_id", placeId);
-        params.add("fields", "rating,user_ratings_total,reviews"); // 필요 필드만
-        params.add("key", googleKey);
-        params.add("language", "ko");
-
-        return webClient.get()
-                .uri(uri -> uri
-                        .scheme("https")
-                        .host("maps.googleapis.com")
-                        .path("/maps/api/place/details/json")
-                        .queryParams(params)
-                        .build())
-                .retrieve()
-                .bodyToMono(GooglePlaceDetailsResponse.class)
-                .block();
-    }
-
-    private static Double parseOrNull(String s) {
-        try { return s == null ? null : Double.parseDouble(s); } catch (Exception e) { return null; }
-    }
     private static double parseOrZero(String s) {
         try { return Double.parseDouble(s); } catch (Exception e) { return 0d; }
-    }
-    private static String safe(String s) {
-        if (s == null) return "";
-        return URLEncoder.encode(s, StandardCharsets.UTF_8);
     }
 }

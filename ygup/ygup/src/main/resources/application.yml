@@ -1,17 +1,17 @@
 # src/main/resources/application.yml
 spring:
   profiles:
-    active: dev   # 기본은 개발 프로파일로 실행
+    active: dev
 
   datasource:
     url: jdbc:mysql://localhost:3306/matbti?useSSL=false&serverTimezone=Asia/Seoul&allowPublicKeyRetrieval=true
-    username: ${DB_USER:root}  # <-- 본인 계정
-    password: 10521004ss!      # <-- 본인 패스워드
+    username: ${DB_USER}
+    password: ${DB_PASSWORD:}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: update       # 개발 중에는 update, 운영 전환 시 validate/none 권장
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
@@ -26,11 +26,26 @@ publicdata:
     service-key: ${TOURAPI_SERVICE_KEY:}
     timeout-ms: 3000
     page-size-default: 20
+
+# --- 외부 API 설정 (중복 없이 한 번만 선언) ---
+kakao:
+  api:
+    url: https://dapi.kakao.com
+    # KAKAO_API_KEY가 있으면 사용, 없으면 KAKAO_REST_API_KEY 사용
+    key: ${KAKAO_API_KEY:${KAKAO_REST_API_KEY:}}
+
+google:
+  api:
+    url: https://maps.googleapis.com
+    key: ${GOOGLE_API_KEY:}
+
 app:
   kakao:
     api:
-      key: ${KAKAO_REST_API_KEY:}   # 카카오 REST API 키
+      base-url: https://dapi.kakao.com
+      key: ${KAKAO_API_KEY:${KAKAO_REST_API_KEY:}}
   google:
-    api-key: ${GOOGLE_API_KEY:}     # 구글 Places API 키
+    api-key: ${GOOGLE_API_KEY:}
+
 gemini:
-  api-key: ${GEMINI_API_KEY:}       # Gemini API 키
+  api-key: ${GEMINI_API_KEY:}
