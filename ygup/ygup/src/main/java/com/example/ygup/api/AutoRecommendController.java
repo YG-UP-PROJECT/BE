@@ -5,8 +5,8 @@ import com.example.ygup.dto.*;
 import com.example.ygup.dto.IncomingSurveyRequest;
 import com.example.ygup.dto.KeywordResponse;
 import com.example.ygup.dto.PreferenceRequest;
-import com.example.ygup.google.place.PlaceAggregatorService; //ygupgoogle 사이에 . 추가
-import com.example.ygup.google.place.dto.PlaceSummary; //ygupgoogle 사이에 . 추가
+import com.example.ygupgoogle.place.PlaceAggregatorService; 
+import com.example.ygupgoogle.place.dto.PlaceSummary; 
 import com.example.ygup.service.GptService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
