@@ -68,6 +68,7 @@ public class SurveyService {
         return (req.mood() == Mood.QUIET ? "Q" : "N") +
                 (req.foodStyle() == FoodStyle.HEALTHY ? "H" : "E") +
                 (req.diningStyle() == DiningStyle.ALONE ? "A" : "T") +
-                (req.timeSlot() == TimeSlot.LUNCH ? "L" : "D");
+                // LUNCH -> D(낮), DINNER -> N(밤)
+                (req.timeSlot() == TimeSlot.LUNCH ? "D" : "N");
     }
 }
