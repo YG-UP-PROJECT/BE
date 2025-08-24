@@ -9,11 +9,13 @@ import org.springframework.context.annotation.ComponentScan;
 
 @SpringBootApplication
 @EnableConfigurationProperties(TourApiProperties.class)
-// 👇 추가된 부분: com.example.ygup 패키지 하위도 스캔하도록 강제
-@ComponentScan(basePackages = "com.example.ygup")
+// 👇 두 패키지를 다 스캔하도록 수정
+@ComponentScan(basePackages = {
+        "com.example.ygup",
+        "com.example.ygupgoogle"
+})
 public class YgupApplication {
     public static void main(String[] args) {
         SpringApplication.run(YgupApplication.class, args);
     }
 }
-
