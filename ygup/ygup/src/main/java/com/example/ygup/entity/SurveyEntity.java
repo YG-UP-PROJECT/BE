@@ -32,6 +32,7 @@ public class SurveyEntity {
     @Enumerated(EnumType.STRING)
     private Weather weather;
 
+    @Column(name = "tempc") //DB컬럼과 매핑
     private Integer tempC;
 
     private String comboCode;
