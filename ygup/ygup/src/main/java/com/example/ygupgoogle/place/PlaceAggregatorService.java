@@ -1,4 +1,4 @@
-package com.example.ygup.google.place;
+package com.example.ygupgoogle.place;
 
 import com.example.ygup.service.PlaceMappingService;
 import com.example.ygupgoogle.place.dto.PlaceSummary;
