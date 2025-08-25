@@ -1,4 +1,4 @@
 package com.example.ygup.enums;
 
-public enum Mood { QUIET, NOISY }
+public enum Mood { QUIET, LOUD }
 
