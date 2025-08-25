@@ -14,22 +14,33 @@ import java.util.List;
 public class KakaoMapService {
 
     private final WebClient webClient;
+    private final PlaceMappingService placeMappingService; // ★ 필드 추가
 
     @Value("${app.kakao.api.key:}")
     private String kakaoApiKey;
 
-    public KakaoMapService(WebClient.Builder webClientBuilder) {
+    // ★ 생성자 주입: PlaceMappingService 추가
+    public KakaoMapService(WebClient.Builder webClientBuilder,
+                           PlaceMappingService placeMappingService) {
         this.webClient = webClientBuilder.baseUrl("https://dapi.kakao.com").build();
+        this.placeMappingService = placeMappingService;
     }
 
     public List<Place> searchPlaces(String location, String keywordsCsv) {
         List<Place> results = new ArrayList<>();
+
+        if (keywordsCsv == null || keywordsCsv.isBlank()) {
+            return results; // 키워드 없으면 빈 리스트
+        }
+
         String[] keywordList = keywordsCsv.split(",");
 
         for (String k : keywordList) {
-            String query = (location == null || location.isBlank())
-                    ? k.trim()
-                    : (location.trim() + " " + k.trim());
+            String kw = (k == null) ? "" : k.trim();
+            if (kw.isEmpty()) continue;
+
+            String loc = (location == null) ? "" : location.trim();
+            String query = loc.isEmpty() ? kw : (loc + " " + kw);
 
             KakaoSearchResponse resp = webClient.get()
                     .uri(uriBuilder -> uriBuilder
@@ -51,13 +62,18 @@ public class KakaoMapService {
                         ? d.road_address_name()
                         : d.address_name();
 
+                // ★ 목록 단계에서 최소 캐시: (구글 place_id는 null이어도 OK)
+                placeMappingService.upsert(
+                        d.id(), null, d.place_name(), addr, lat, lng
+                );
+
                 results.add(new Place(
                         d.id(),
                         d.place_name(),
                         addr,
                         lat,
                         lng,
-                        null, // 카카오 응답엔 별점 없음. (평점이 필요하면 PlaceAggregatorService 사용)
+                        null, // 카카오는 평점 없음
                         d.place_url()
                 ));
             }

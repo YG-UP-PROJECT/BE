@@ -99,6 +99,15 @@ public class PlaceAggregatorService {
                 attributions
         );
     }
+    public String resolveGooglePlaceIdByText(String name, String address, Double lat, Double lng) {
+        if ((name == null || name.isBlank()) && (address == null || address.isBlank())) return null;
+        String textQuery = ((name == null) ? "" : name) + " " + ((address == null) ? "" : address);
+        var ts = googleTextSearch(textQuery.trim(), lat, lng);
+        if (ts != null && ts.results() != null && !ts.results().isEmpty()) {
+            return ts.results().get(0).place_id();
+        }
+        return null;
+    }
 
     public List<PlaceSummary> searchWithGoogleRatings(String query, int limit) {
         var kakaoDocs = kakaoKeywordSearch(query);

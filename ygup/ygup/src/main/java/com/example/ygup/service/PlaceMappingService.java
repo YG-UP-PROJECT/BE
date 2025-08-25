@@ -35,4 +35,9 @@ public class PlaceMappingService {
     public Optional<String> findGoogleIdByKakaoId(String kakaoId) {
         return repo.findById(kakaoId).map(PlaceMappingEntity::getGooglePlaceId);
     }
+
+    @Transactional(readOnly = true)
+    public Optional<PlaceMappingEntity> findByKakaoId(String kakaoId) {
+        return repo.findById(kakaoId);
+    }
 }

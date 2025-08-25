@@ -25,6 +25,25 @@ public class PlaceDetailsController {
             @RequestParam("kakaoId") String kakaoId
     ) {
         var googleOpt = mappingService.findGoogleIdByKakaoId(kakaoId);
+        if (googleOpt.isPresent()) {
+            return ResponseEntity.ok(service.getDetailsByGooglePlaceId(googleOpt.get(), kakaoId));
+        }
+
+        // 2) 기본정보(이름/주소/좌표)가 캐시돼 있으면 텍스트 서치로 place_id 해석 → 매핑 저장 → 상세
+        var basicOpt = mappingService.findByKakaoId(kakaoId);
+        if (basicOpt.isPresent()) {
+            var basic = basicOpt.get();
+            String resolved = service.resolveGooglePlaceIdByText(
+                    basic.getName(), basic.getAddress(), basic.getLat(), basic.getLng()
+            );
+            if (resolved != null && !resolved.isBlank()) {
+                mappingService.upsert(
+                        kakaoId, resolved,
+                        basic.getName(), basic.getAddress(), basic.getLat(), basic.getLng()
+                );
+                return ResponseEntity.ok(service.getDetailsByGooglePlaceId(resolved, kakaoId));
+            }
+        }
         // 매핑이 아직 없다면(검색 리스트를 안 거쳤거나 캐시 미스),
         // 구글ID 없이도 최소한 Kakao 정보만으로 PlaceDetailsResponse 뼈대는 내려줄 수 있음.
         // 여기서는 구글 상세가 없으면 name/address/rating이 null일 수 있음.
@@ -49,4 +68,5 @@ public class PlaceDetailsController {
     ) {
         return ResponseEntity.ok(service.getDetailsByGooglePlaceId(googlePlaceId, kakaoId));
     }
+
 }
