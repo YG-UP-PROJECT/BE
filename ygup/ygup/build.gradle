@@ -38,6 +38,8 @@ dependencies {
     implementation 'io.projectreactor.netty:reactor-netty'
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-xml' // ⬅️ 추가
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
