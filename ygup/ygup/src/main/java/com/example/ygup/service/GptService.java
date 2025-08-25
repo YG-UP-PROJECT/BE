@@ -165,7 +165,7 @@ public class GptService {
         var dining = req.getDiningStyle();
         var time = req.getTimeSlot();
 
-        String m = (mood == null || mood.name().equals("QUIET")) ? "Q" : "N";
+        String m = (mood == null || mood.name().equals("QUIET")) ? "Q" : "L";
         String f = (food == null || food.name().equals("HEALTHY")) ? "H" : "E";
         String d = (dining == null || dining.name().equals("ALONE")) ? "A" : "T";
         String t = (time == null || time.name().equals("LUNCH")) ? "L" : "D";
