@@ -168,7 +168,7 @@ public class GptService {
         String m = (mood == null || mood.name().equals("QUIET")) ? "Q" : "L";
         String f = (food == null || food.name().equals("HEALTHY")) ? "H" : "E";
         String d = (dining == null || dining.name().equals("ALONE")) ? "A" : "T";
-        String t = (time == null || time.name().equals("LUNCH")) ? "L" : "D";
+        String t = (time == null || time.name().equals("DAY")) ? "D" : "N";
         return m + f + d + t;
     }
 }

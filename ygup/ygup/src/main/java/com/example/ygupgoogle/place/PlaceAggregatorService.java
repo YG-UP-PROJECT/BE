@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-
+import org.springframework.http.ResponseEntity;
 @Service
 public class PlaceAggregatorService {
 
@@ -37,6 +37,21 @@ public class PlaceAggregatorService {
         this.googleKey = googleKey;
         this.placeMappingService = placeMappingService;
     }
+    public ResponseEntity<byte[]> fetchPhoto(String photoRef, int maxWidth) {
+        return webClient.get()
+                .uri(uri -> uri
+                        .scheme("https")
+                        .host("maps.googleapis.com")
+                        .path("/maps/api/place/photo")
+                        .queryParam("maxwidth", maxWidth)
+                        .queryParam("photo_reference", photoRef)
+                        .queryParam("key", googleKey)
+                        .build())
+                .exchangeToMono(resp -> resp.toEntity(byte[].class))
+                .block();
+    }
+
+
     public byte[] fetchPhotoBytes(String photoRef, int maxWidth) {
         return webClient.get()
                 .uri(uri -> uri

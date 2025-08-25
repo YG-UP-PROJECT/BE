@@ -32,11 +32,16 @@ public class PlaceController {
             @RequestParam("ref") String photoRef,
             @RequestParam(value = "maxWidth", defaultValue = "800") int maxWidth
     ) {
-        byte[] bytes = service.fetchPhotoBytes(photoRef, maxWidth);
-        // 간단히 jpeg로 지정 (구글이 웹p/PNG일 수도 있으니 필요하면 Content-Type 동적 처리)
-        return ResponseEntity.ok()
-                .header("Cache-Control", "public, max-age=86400")
-                .header("Content-Type", "image/jpeg")
-                .body(bytes);
+        var upstream = service.fetchPhoto(photoRef, maxWidth);
+        if (upstream == null || upstream.getBody() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        // 구글이 주는 Content-Type을 그대로 전달 + 캐시만 추가
+        return ResponseEntity.status(upstream.getStatusCode())
+                .headers(h -> {
+                    h.putAll(upstream.getHeaders());
+                    h.set("Cache-Control", "public, max-age=86400");
+                })
+                .body(upstream.getBody());
     }
 }
