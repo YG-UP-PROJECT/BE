@@ -8,7 +8,6 @@ import com.example.ygup.publicdata.dto.PageResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
@@ -33,7 +32,7 @@ public class TourApiClient {
     private final TourApiProperties props;
     private final WebClient webClient;
 
-    // ⬇️ 추가: JSON/XML 파서를 모두 보유
+    // JSON/XML 파서
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final XmlMapper xmlMapper = new XmlMapper();
 
@@ -43,10 +42,11 @@ public class TourApiClient {
         this.webClient = builder
                 .baseUrl(props.getBaseUrl())
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
-                // ⬇️ 수정: Accept에 JSON, XML 둘 다 명시. GET에 Content-Type 강제하지 않음.
-                .defaultHeaders(h -> {
-                    h.setAccept(List.of(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_XML));
-                })
+                .defaultHeaders(h -> h.setAccept(List.of(
+                        MediaType.APPLICATION_JSON,
+                        MediaType.APPLICATION_XML,
+                        MediaType.TEXT_XML
+                )))
                 .build();
     }
 
@@ -62,6 +62,9 @@ public class TourApiClient {
         p.put("numOfRows", size);
 
         JsonNode root = get(PATH_SEARCH_KEYWORD, p);
+        if (root == null || root.isEmpty()) {
+            return new PageResponse<>(page, size, 0, Collections.emptyList()); // 500 방지
+        }
         return toSummaryPage(root, page, size);
     }
 
@@ -79,6 +82,9 @@ public class TourApiClient {
         p.put("arrange", "E");
 
         JsonNode root = get(PATH_LOCATION_BASED, p);
+        if (root == null || root.isEmpty()) {
+            return new PageResponse<>(page, size, 0, Collections.emptyList()); // 500 방지
+        }
         return toSummaryPage(root, page, size);
     }
 
@@ -87,7 +93,7 @@ public class TourApiClient {
     }
 
     public AttractionDetailDto getDetail(long contentId, Integer contentTypeId) {
-        // 1) 공통 상세 먼저 시도
+        // 1) 공통 상세
         Map<String, Object> p1 = new HashMap<>();
         p1.put("contentId", contentId);
         if (contentTypeId != null) p1.put("contentTypeId", contentTypeId);
@@ -97,14 +103,14 @@ public class TourApiClient {
 
         JsonNode common = get(PATH_DETAIL_COMMON, p1);
 
-        // 아이템이 없고 타입을 모르거나 틀린 경우: 대표 타입으로 재시도
+        // 아이템이 없고 타입 모르면 대표 타입으로 재시도
         if (firstItem(common) == null && contentTypeId == null) {
             int[] candidates = {12, 14, 38, 39}; // 관광지, 문화시설, 쇼핑, 음식점
             for (int ct : candidates) {
                 p1.put("contentTypeId", ct);
                 common = get(PATH_DETAIL_COMMON, p1);
                 if (firstItem(common) != null) {
-                    contentTypeId = ct; // 찾았으면 이미지 호출에도 같이 씀
+                    contentTypeId = ct;
                     break;
                 }
             }
@@ -151,10 +157,8 @@ public class TourApiClient {
     /* ========= 내부 공통 ========= */
 
     /**
-     * 응답 Content-Type을 확인해 JSON/XML로 분기 파싱.
-     * - JSON: JsonNode로 바로
-     * - XML (application/xml, text/xml): 문자열로 받고 XmlMapper.readTree(...)
-     * - 그 외: 본문 첫 글자를 보고 추정 파싱 (방어)
+     * 항상 문자열로 받은 뒤 Content-Type/본문을 기준으로 JSON/XML 파싱.
+     * 실패 시 빈 ObjectNode 반환(500 방지).
      */
     private JsonNode get(String path, Map<String, ?> params) {
         URI uri = buildUri(path, params);
@@ -162,40 +166,35 @@ public class TourApiClient {
                 .uri(uri)
                 .exchangeToMono(res -> {
                     MediaType ct = res.headers().contentType().orElse(MediaType.APPLICATION_OCTET_STREAM);
-
-                    if (MediaType.APPLICATION_JSON.isCompatibleWith(ct)) {
-                        return res.bodyToMono(JsonNode.class);
-                    } else if (MediaType.APPLICATION_XML.isCompatibleWith(ct) ||
-                            MediaType.TEXT_XML.isCompatibleWith(ct)) {
-                        return res.bodyToMono(String.class)
-                                .map(xml -> {
-                                    try {
-                                        return xmlMapper.readTree(xml);
-                                    } catch (Exception e) {
-                                        throw new RuntimeException("XML 파싱 실패", e);
-                                    }
-                                });
-                    } else {
-                        // 서버가 Content-Type을 엉뚱하게 주는 경우를 대비한 방어 로직
-                        return res.bodyToMono(String.class)
-                                .map(body -> {
-                                    try {
-                                        String trimmed = body == null ? "" : body.trim();
-                                        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-                                            return objectMapper.readTree(trimmed);
-                                        }
-                                        return xmlMapper.readTree(trimmed);
-                                    } catch (Exception e) {
-                                        throw new RuntimeException("응답 파싱 실패(Content-Type=" + ct + ")", e);
-                                    }
-                                });
-                    }
+                    return res.bodyToMono(String.class).map(body -> parseBodyToJsonNode(body, ct));
                 })
+                .onErrorReturn(objectMapper.createObjectNode())
                 .block();
     }
 
+    private JsonNode parseBodyToJsonNode(String body, MediaType ct) {
+        if (body == null || body.isBlank()) return objectMapper.createObjectNode();
+        try {
+            // 명시적 Content-Type 우선
+            if (ct != null && ct.includes(MediaType.APPLICATION_JSON)) {
+                return objectMapper.readTree(body);
+            }
+            if (ct != null && (ct.includes(MediaType.APPLICATION_XML) || ct.includes(MediaType.TEXT_XML))) {
+                return xmlMapper.readTree(body);
+            }
+            // 타입이 이상하면 내용으로 추정
+            String t = body.trim();
+            if (t.startsWith("{") || t.startsWith("[")) {
+                return objectMapper.readTree(t);
+            }
+            return xmlMapper.readTree(t);
+        } catch (Exception e) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
     private URI buildUri(String path, Map<String, ?> params) {
-        // serviceKey는 "디코딩 키"를 넣어도 자동 인코딩해서 안전하게 처리
+        // serviceKey는 원본(디코딩) 키를 넣어도 여기서 인코딩 처리
         String sk = props.getServiceKey();
         if (sk != null && !sk.contains("%")) {
             sk = URLEncoder.encode(sk, StandardCharsets.UTF_8);
@@ -206,7 +205,7 @@ public class TourApiClient {
                 .path(path)
                 .queryParam("MobileOS", "ETC")
                 .queryParam("MobileApp", "MatBTI")
-                .queryParam("_type", "json")            // JSON 요청 시도 (무시될 수 있어도 유지)
+                .queryParam("_type", "json") // JSON 요청 시도(무시되더라도 유지)
                 .queryParam("serviceKey", sk);
 
         if (params != null) {
@@ -214,15 +213,13 @@ public class TourApiClient {
                 if (v == null) return;
                 Object value = v;
                 if (v instanceof String s) {
-                    // 공백/따옴표 제거 + UTF-8 인코딩
-                    String cleaned = safeStr(s);
+                    String cleaned = safeStr(s); // 공백/따옴표 제거
                     value = URLEncoder.encode(cleaned, StandardCharsets.UTF_8);
                 }
                 ub.queryParam(k, value);
             });
         }
-        // true: 우리가 넣은 % 인코딩을 다시 건드리지 않게 보존
-        return ub.build(true).toUri();
+        return ub.build(true).toUri(); // true: 우리가 넣은 % 인코딩을 보존
     }
 
     private static String safeStr(String s) {
@@ -248,8 +245,7 @@ public class TourApiClient {
             dto.setMapY(getDoubleObj(n, "mapy"));
             dto.setThumbnail(firstNonEmpty(getText(n, "firstimage"), getText(n, "firstimage2")));
             dto.setCategory(firstNonEmpty(getText(n, "cat3"), getText(n, "cat2"), getText(n, "cat1")));
-            // dist(Double) → 반올림 Long(meters)
-            Double dist = getDoubleObj(n, "dist");
+            Double dist = getDoubleObj(n, "dist"); // Double → 반올림 Long(meters)
             dto.setDistanceMeters(dist == null ? null : Math.round(dist));
             items.add(dto);
         }
@@ -271,14 +267,46 @@ public class TourApiClient {
     private JsonNode safe(JsonNode node, String... path) {
         JsonNode cur = node;
         if (cur == null) return null;
-        for (String p : path) { if (cur == null) return null; cur = cur.get(p); }
+        for (String p : path) {
+            if (cur == null) return null;
+            cur = cur.get(p);
+        }
         return (cur == null || cur.isMissingNode() || cur.isNull()) ? null : cur;
     }
-    private String getText(JsonNode n, String field) { JsonNode v = n == null ? null : n.get(field); return (v == null || v.isNull()) ? null : v.asText(null); }
-    private long getLong(JsonNode n, String field) { JsonNode v = n == null ? null : n.get(field); if (v == null || v.isNull()) return 0L; try { return Long.parseLong(v.asText()); } catch (Exception e) { return 0L; } }
-    private Long getLongObj(JsonNode n, String field) { JsonNode v = n == null ? null : n.get(field); if (v == null || v.isNull()) return null; try { return Long.parseLong(v.asText()); } catch (Exception e) { return null; } }
-    private Double getDoubleObj(JsonNode n, String field) { JsonNode v = n == null ? null : n.get(field); if (v == null || v.isNull()) return null; try { return Double.parseDouble(v.asText()); } catch (Exception e) { return null; } }
+
+    private String getText(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        return (v == null || v.isNull()) ? null : v.asText(null);
+    }
+
+    private long getLong(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        if (v == null || v.isNull()) return 0L;
+        try { return Long.parseLong(v.asText()); } catch (Exception e) { return 0L; }
+    }
+
+    private Long getLongObj(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        if (v == null || v.isNull()) return null;
+        try { return Long.parseLong(v.asText()); } catch (Exception e) { return null; }
+    }
+
+    private Double getDoubleObj(JsonNode n, String field) {
+        JsonNode v = n == null ? null : n.get(field);
+        if (v == null || v.isNull()) return null;
+        try { return Double.parseDouble(v.asText()); } catch (Exception e) { return null; }
+    }
+
     private boolean isNotBlank(String s) { return s != null && !s.isBlank(); }
-    private String firstNonEmpty(String... vals) { if (vals == null) return null; for (String s : vals) if (isNotBlank(s)) return s; return null; }
-    private String joinAddr(String a1, String a2) { if (isNotBlank(a1) && isNotBlank(a2)) return a1 + " " + a2; return isNotBlank(a1) ? a1 : a2; }
+
+    private String firstNonEmpty(String... vals) {
+        if (vals == null) return null;
+        for (String s : vals) if (isNotBlank(s)) return s;
+        return null;
+    }
+
+    private String joinAddr(String a1, String a2) {
+        if (isNotBlank(a1) && isNotBlank(a2)) return a1 + " " + a2;
+        return isNotBlank(a1) ? a1 : a2;
+    }
 }
